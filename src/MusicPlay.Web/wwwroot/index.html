@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusicPlay - Transfira Playlists entre Serviços de Música (C# .NET 10)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#ecfdf5',
+                            500: '#10b981',
+                            600: '#059669',
+                            dark: '#0B0F17'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- SignalR CDN oficial da Microsoft -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="antialiased min-h-screen flex flex-col justify-between">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-800/80 bg-slate-950/60 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="resetWizard()">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <svg class="w-6 h-6 text-slate-950" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 2-1.79 2-4V7h4V3h-4z"/>
+                    </svg>
+                </div>
+                <div>
+                    <span class="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
+                        Music<span class="text-emerald-400">Play</span>
+                    </span>
+                    <span class="text-[10px] text-slate-400 font-medium block -mt-1">Powered by C# .NET 10</span>
+                </div>
+            </div>
+
+            <!-- Badges e Status -->
+            <div class="flex items-center gap-3">
+                <button id="btn-header-spotify-login" onclick="loginWithSpotify()" class="text-xs px-3.5 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold transition-all inline-flex items-center gap-1.5 shadow">
+                    <span>🎵</span>
+                    <span id="header-spotify-btn-text">Conectar Spotify</span>
+                </button>
+                <div class="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span class="font-mono text-emerald-400 font-semibold">SignalR Live</span>
+                </div>
+                <button onclick="openApiModal()" class="text-xs px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors">
+                    Configurações
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
+
+        <!-- Wizard Step Indicators -->
+        <div class="mb-10 flex items-center justify-center gap-2 sm:gap-4 overflow-x-auto pb-2">
+            <div id="step-pill-1" class="flex items-center gap-2 text-xs font-semibold text-white bg-slate-800 px-3 py-1.5 rounded-full border border-slate-600 shadow">
+                <span class="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[11px] font-bold">1</span>
+                <span>Origem</span>
+            </div>
+            <span class="text-slate-600">➔</span>
+            <div id="step-pill-2" class="flex items-center gap-2 text-xs font-semibold text-slate-500 px-3 py-1.5 rounded-full">
+                <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[11px] font-bold">2</span>
+                <span>Faixas</span>
+            </div>
+            <span class="text-slate-600">➔</span>
+            <div id="step-pill-3" class="flex items-center gap-2 text-xs font-semibold text-slate-500 px-3 py-1.5 rounded-full">
+                <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[11px] font-bold">3</span>
+                <span>Destino</span>
+            </div>
+            <span class="text-slate-600">➔</span>
+            <div id="step-pill-4" class="flex items-center gap-2 text-xs font-semibold text-slate-500 px-3 py-1.5 rounded-full">
+                <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[11px] font-bold">4</span>
+                <span>Transferindo</span>
+            </div>
+            <span class="text-slate-600">➔</span>
+            <div id="step-pill-5" class="flex items-center gap-2 text-xs font-semibold text-slate-500 px-3 py-1.5 rounded-full">
+                <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[11px] font-bold">5</span>
+                <span>Concluído</span>
+            </div>
+        </div>
+
+        <!-- ================= PASSO 1: SELECIONAR ORIGEM ================= -->
+        <section id="step-1-screen" class="space-y-8 animate-fadeIn">
+            <div class="text-center max-w-2xl mx-auto space-y-3">
+                <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                    De onde você quer transferir?
+                </h1>
+                <p class="text-sm text-slate-400">
+                    Selecione a plataforma onde suas playlists estão atualmente guardadas.
+                </p>
+            </div>
+
+            <!-- Barra de Link Direto Universal (Fácil Integração) -->
+            <div class="glass-card p-6 border-emerald-500/30 bg-gradient-to-r from-emerald-950/30 via-slate-900/60 to-cyan-950/30 shadow-2xl space-y-3">
+                <div class="flex items-center justify-between">
+                    <label for="direct-url-input" class="text-sm font-bold text-white flex items-center gap-2">
+                        <span class="text-emerald-400 text-base">⚡</span>
+                        <span>Colar Link Direto de Playlist (Spotify, YouTube Music, Deezer)</span>
+                        <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono">100% Funcional sem chaves</span>
+                    </label>
+                    <span class="hidden sm:inline-block text-[11px] text-slate-400">Público ou Não-Listado</span>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <div class="relative flex-1">
+                        <input type="url" id="direct-url-input" 
+                               placeholder="Ex: https://open.spotify.com/playlist/... ou https://music.youtube.com/playlist?list=..." 
+                               class="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl px-4 py-3.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" />
+                    </div>
+                    <button id="btn-load-direct-url" onclick="loadFromDirectUrl()" 
+                            class="px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer">
+                        <span id="load-url-btn-text">Carregar Playlist</span>
+                        <span id="load-url-spinner" class="hidden w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                        <span>➔</span>
+                    </button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-400">
+                    <span class="text-slate-500">Testar agora com links reais:</span>
+                    <button type="button" onclick="fillAndLoadUrl('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M')" class="hover:text-emerald-400 underline decoration-slate-600 hover:decoration-emerald-400">Spotify Top 50</button>
+                    <span>•</span>
+                    <button type="button" onclick="fillAndLoadUrl('https://music.youtube.com/playlist?list=PLMC9KNkIncKtPzgY-5rmhvj7fax8fdxoj')" class="hover:text-rose-400 underline decoration-slate-600 hover:decoration-rose-400">YouTube Pop Hits</button>
+                    <span>•</span>
+                    <button type="button" onclick="fillAndLoadUrl('https://www.deezer.com/playlist/3155776842')" class="hover:text-purple-400 underline decoration-slate-600 hover:decoration-purple-400">Deezer Top Hits</button>
+                </div>
+            </div>
+
+            <div class="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider -my-2">
+                — ou selecione uma biblioteca abaixo —
+            </div>
+
+            <!-- Grade de Provedores de Origem -->
+            <div id="source-providers-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <!-- Preenchido via JavaScript -->
+            </div>
+
+            <!-- Opções Rápidas: Importar Arquivo ou Link Direto -->
+            <div class="glass-card p-6 border-slate-800/80 bg-slate-900/40 mt-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <span>📁 Importar arquivo de backup</span>
+                            <span class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded">CSV • M3U • JSON</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">
+                            Já tem uma lista salva? Envie seu arquivo e migre para qualquer plataforma.
+                        </p>
+                    </div>
+                    <div class="flex items-center justify-end">
+                        <label class="cursor-pointer px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-slate-700 transition-all flex items-center gap-2 shadow">
+                            <span>Selecionar Arquivo</span>
+                            <input type="file" id="playlist-file-input" accept=".csv,.m3u,.m3u8,.json" class="hidden" />
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PASSO 2: SELECIONAR PLAYLIST E FAIXAS ================= -->
+        <section id="step-2-screen" class="hidden space-y-6 animate-fadeIn">
+            <!-- Sub-tela 2A: Escolha da Playlist -->
+            <div id="playlist-selection-screen" class="space-y-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">Escolha a Playlist</h2>
+                        <p class="text-xs text-slate-400">Playlists encontradas na sua biblioteca</p>
+                    </div>
+                    <button onclick="goToStep(1)" class="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded-lg border border-slate-800 hover:bg-slate-800">
+                        ← Trocar Origem
+                    </button>
+                </div>
+
+                <div id="playlists-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+            </div>
+
+            <!-- Sub-tela 2B: Detalhes e Seleção de Faixas -->
+            <div id="tracks-selection-screen" class="hidden space-y-6">
+                <!-- Cabeçalho da Playlist Selecionada -->
+                <div class="glass-card p-6 flex flex-col sm:flex-row items-center gap-6">
+                    <img id="selected-playlist-cover" src="" class="w-24 h-24 sm:w-28 sm:h-28 rounded-xl object-cover shadow-xl border border-slate-700" alt="" />
+                    <div class="flex-1 text-center sm:text-left">
+                        <span class="text-xs font-semibold text-emerald-400 tracking-wider uppercase">Playlist Selecionada</span>
+                        <h2 id="selected-playlist-title" class="text-2xl font-bold text-white mb-1"></h2>
+                        <p id="selected-playlist-meta" class="text-xs text-slate-400 mb-4"></p>
+                        
+                        <div class="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                            <button onclick="toggleSelectAll(true)" class="text-xs px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">
+                                Selecionar Todas
+                            </button>
+                            <button onclick="toggleSelectAll(false)" class="text-xs px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">
+                                Desmarcar Todas
+                            </button>
+                            <span id="selected-count-badge" class="text-xs font-mono px-3 py-1.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                0 selecionadas
+                            </span>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="btn-to-step-3" onclick="goToStep(3)" class="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                            Continuar ➔
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Barra de Filtro de Músicas -->
+                <div class="flex items-center gap-3">
+                    <input type="text" id="tracks-search-filter" placeholder="Filtrar músicas por título, artista ou álbum..." 
+                           class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+                    <button onclick="document.getElementById('playlist-selection-screen').classList.remove('hidden'); document.getElementById('tracks-selection-screen').classList.add('hidden');" 
+                            class="text-xs text-slate-400 hover:text-white px-4 py-2.5 rounded-xl border border-slate-800 bg-slate-900">
+                        Voltar às Playlists
+                    </button>
+                </div>
+
+                <!-- Lista de Faixas com Checkbox -->
+                <div class="glass-card overflow-hidden">
+                    <div id="tracks-list-container" class="max-h-[480px] overflow-y-auto divide-y divide-slate-800/40">
+                        <!-- Linhas de músicas renderizadas dinamicamente -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PASSO 3: SELECIONAR DESTINO ================= -->
+        <section id="step-3-screen" class="hidden space-y-8 animate-fadeIn">
+            <div class="text-center max-w-2xl mx-auto space-y-3">
+                <h2 class="text-3xl font-extrabold text-white tracking-tight">
+                    Para onde você quer enviar?
+                </h2>
+                <p class="text-sm text-slate-400">
+                    Escolha a plataforma de destino ou gere um arquivo de exportação.
+                </p>
+            </div>
+
+            <!-- Grade de Destinos -->
+            <div id="dest-providers-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <!-- Preenchido via JavaScript -->
+            </div>
+
+            <!-- Configurações da Playlist de Destino -->
+            <div class="glass-card p-6 max-w-xl mx-auto space-y-4">
+                <h3 class="text-sm font-bold text-white">Nome da Nova Playlist no Destino</h3>
+                <input type="text" id="dest-playlist-name-input" placeholder="Minha Playlist Migrada" 
+                       class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+                
+                <div class="pt-2 flex items-center justify-between">
+                    <button onclick="goToStep(2)" class="text-xs text-slate-400 hover:text-white px-4 py-2 rounded-lg border border-slate-800">
+                        ← Voltar para Faixas
+                    </button>
+                    <button id="btn-confirm-dest" onclick="startTransferProcess()" disabled 
+                            class="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        Iniciar Transferência 🚀
+                    </button>
+                </div>
+                <p class="text-center text-[11px] text-slate-500">Destino selecionado: <span id="dest-summary-name" class="text-slate-300 font-semibold">Nenhum</span></p>
+            </div>
+        </section>
+
+        <!-- ================= PASSO 4: MONITOR AO VIVO COM SIGNALR ================= -->
+        <section id="step-4-screen" class="hidden space-y-6 animate-fadeIn">
+            <!-- Painel de Progresso Principal -->
+            <div class="glass-card p-6 sm:p-8 space-y-6 glow-primary">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="sound-wave">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">Transferindo Playlist...</h2>
+                            <p id="transfer-current-track-label" class="text-xs text-slate-400">Preparando motor de correspondência C# .NET...</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span id="transfer-percentage-text" class="text-4xl font-black text-emerald-400 font-mono">0%</span>
+                    </div>
+                </div>
+
+                <!-- Barra de Progresso com Gradiente -->
+                <div class="w-full bg-slate-900 rounded-full h-4 overflow-hidden p-0.5 border border-slate-800">
+                    <div id="transfer-progress-bar" class="bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 h-full rounded-full transition-all duration-300 shadow-md" style="width: 0%"></div>
+                </div>
+
+                <!-- Contadores ao Vivo -->
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                        <span class="text-xs text-slate-400 block mb-0.5">Encontradas</span>
+                        <span id="stat-matched-count" class="text-xl font-bold text-emerald-400 font-mono">0</span>
+                    </div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                        <span class="text-xs text-slate-400 block mb-0.5">Não Encontradas</span>
+                        <span id="stat-failed-count" class="text-xl font-bold text-rose-400 font-mono">0</span>
+                    </div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                        <span class="text-xs text-slate-400 block mb-0.5">Restantes</span>
+                        <span id="stat-remaining-count" class="text-xl font-bold text-slate-300 font-mono">0</span>
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button onclick="cancelTransfer()" class="text-xs text-rose-400 hover:text-rose-300 px-4 py-2 rounded-lg border border-rose-500/30 hover:bg-rose-500/10 transition-colors">
+                        Cancelar Transferência
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grade de Monitoramento: Log de Terminal + Stream de Músicas -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Terminal de Log do Servidor C# -->
+                <div class="glass-card overflow-hidden">
+                    <div class="bg-slate-900 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
+                        <span>Terminal C# (SignalR Stream)</span>
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    </div>
+                    <div id="transfer-terminal-output" class="terminal-window p-4 h-64 overflow-y-auto space-y-1">
+                        <!-- Mensagens de log em tempo real -->
+                    </div>
+                </div>
+
+                <!-- Stream Visual de Faixas Correspondidas -->
+                <div class="glass-card overflow-hidden flex flex-col">
+                    <div class="bg-slate-900 px-4 py-2.5 border-b border-slate-800 text-xs text-slate-400 font-mono">
+                        Últimas Faixas Sincronizadas
+                    </div>
+                    <div id="live-matches-stream" class="p-4 h-64 overflow-y-auto flex-1">
+                        <!-- Cards de faixas combinadas -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PASSO 5: CONCLUSÃO E DOWNLOAD ================= -->
+        <section id="step-5-screen" class="hidden space-y-8 animate-fadeIn max-w-2xl mx-auto text-center">
+            <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-300 flex items-center justify-center mx-auto shadow-2xl shadow-emerald-500/30">
+                <svg class="w-10 h-10 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+
+            <div class="space-y-2">
+                <h2 class="text-3xl font-extrabold text-white">Transferência Concluída!</h2>
+                <p class="text-sm text-slate-400">Suas músicas foram migradas com sucesso para a plataforma de destino.</p>
+            </div>
+
+            <!-- Resumo Estatístico -->
+            <div class="glass-card p-6 grid grid-cols-4 gap-4">
+                <div>
+                    <span class="text-xs text-slate-400 block mb-1">Total</span>
+                    <span id="final-total-count" class="text-2xl font-bold text-white font-mono">0</span>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-400 block mb-1">Sincronizadas</span>
+                    <span id="final-matched-count" class="text-2xl font-bold text-emerald-400 font-mono">0</span>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-400 block mb-1">Não Encontradas</span>
+                    <span id="final-failed-count" class="text-2xl font-bold text-rose-400 font-mono">0</span>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-400 block mb-1">Precisão</span>
+                    <span id="final-success-rate" class="text-2xl font-bold text-cyan-400 font-mono">100%</span>
+                </div>
+            </div>
+
+            <!-- Botões de Ação Final -->
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <a id="btn-open-destination" href="#" target="_blank" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/25 transition-all">
+                        <span id="btn-open-destination-text">Abrir Playlist no Destino</span>
+                        <span>↗</span>
+                    </a>
+                    <button id="btn-tunemymusic" onclick="sendToSpotifyViaTuneMyMusic()" class="hidden w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all">
+                        <span>🚀 Criar Playlist no Spotify (1 Clique)</span>
+                    </button>
+                    <button id="btn-copy-spotify-links" onclick="copyTracksForSpotify()" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-sm border border-emerald-500/30 transition-all">
+                        <span>📋 Copiar Lista (Texto)</span>
+                    </button>
+                    <a id="btn-open-secondary" href="#" target="_blank" class="hidden w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm border border-slate-700 transition-all">
+                        <span id="btn-open-secondary-text">Ouvir no YouTube Music</span>
+                        <span>↗</span>
+                    </a>
+                </div>
+
+                <!-- Dica Rápida de Salvamento no Spotify / YouTube -->
+                <div class="glass-card p-4 text-xs text-slate-300 text-left bg-slate-900/60 border-slate-800 space-y-1.5">
+                    <p class="font-bold text-emerald-400 flex items-center gap-1.5">
+                        <span>💡 Como salvar a playlist na sua conta pessoal:</span>
+                    </p>
+                    <p class="text-slate-400 leading-relaxed">
+                        • <strong>No Spotify (Sem chaves de API):</strong> Clique no botão verde <em>"Criar Playlist no Spotify (1 Clique)"</em>. Ele copia a lista e abre o importador oficial (TuneMyMusic) — basta dar Ctrl+V na caixa de texto e ele cria a playlist na sua conta na hora sem precisar de nenhuma chave de desenvolvedor!<br/>
+                        • <strong>No YouTube:</strong> Ao clicar em <em>"Abrir Fila no YouTube"</em>, basta clicar no botão <strong>"+ Salvar playlist"</strong> na tela do YouTube.
+                    </p>
+                </div>
+
+                <!-- Lista Interativa de Músicas Sincronizadas -->
+                <div class="text-left pt-2">
+                    <h3 class="text-xs font-bold text-slate-300 mb-2 flex items-center justify-between">
+                        <span>Músicas Sincronizadas (<span id="final-list-count">0</span>)</span>
+                        <span class="text-[11px] text-slate-500 font-normal">Links diretos para cada música</span>
+                    </h3>
+                    <div id="final-tracks-list" class="glass-card max-h-56 overflow-y-auto divide-y divide-slate-800/60 p-2 text-xs">
+                        <!-- Itens renderizados dinamicamente -->
+                    </div>
+                </div>
+
+                <!-- Downloads de Backup -->
+                <div class="pt-4">
+                    <span class="text-xs text-slate-400 block mb-3">Baixar lista em formatos universais:</span>
+                    <div class="flex items-center justify-center gap-3">
+                        <a id="btn-dl-m3u" href="#" download class="text-xs px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-colors">
+                            📥 Playlist M3U8
+                        </a>
+                        <a id="btn-dl-txt" href="#" download class="text-xs px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-colors">
+                            📥 Arquivo TXT
+                        </a>
+                        <a id="btn-dl-csv" href="#" download class="text-xs px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-colors">
+                            📥 Planilha CSV
+                        </a>
+                        <a id="btn-dl-json" href="#" download class="text-xs px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-colors">
+                            📥 Arquivo JSON
+                        </a>
+                    </div>
+                </div>
+
+                <div class="pt-6">
+                    <button onclick="resetWizard()" class="text-xs text-slate-400 hover:text-white underline">
+                        Transferir outra playlist
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal de Conexões e Integração Fácil -->
+    <div id="api-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-card max-w-lg w-full p-6 space-y-5 border-slate-700 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🔌</span>
+                    <h3 class="text-base font-bold text-white">Central de Integrações</h3>
+                </div>
+                <button onclick="closeApiModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
+            </div>
+
+            <!-- Status dos Serviços -->
+            <div class="space-y-2">
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Status das Conexões</h4>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                        <span class="font-medium text-white">YouTube / YT Music</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">100% Ativo</span>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                        <span class="font-medium text-white">Deezer API</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">100% Ativo</span>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                        <span class="font-medium text-white">Spotify (Links/Embed)</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">100% Ativo</span>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                        <span class="font-medium text-white">Arquivos (M3U/CSV)</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">100% Ativo</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conectar Conta Spotify Opcional -->
+            <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>🎵 Conectar Conta do Spotify (Criação Direta)</span>
+                    </label>
+                    <span id="spotify-auth-badge" class="text-[10px] text-slate-400 font-semibold">Não conectado</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                    Para o MusicPlay salvar a nova playlist <strong>diretamente na sua biblioteca do Spotify</strong>, faça login oficial com seu Client ID ou cole um token:
+                </p>
+
+                <div class="space-y-2">
+                    <div class="flex gap-2">
+                        <input type="text" id="modal-spotify-client-id" placeholder="Seu Client ID do Spotify..." 
+                               class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400" />
+                        <button onclick="loginWithSpotify()" class="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs inline-flex items-center gap-1 whitespace-nowrap shadow">
+                            <span>🔑 Entrar com Spotify</span>
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-500">
+                        Obtenha seu Client ID em <a href="https://developer.spotify.com/dashboard" target="_blank" class="text-emerald-400 underline">developer.spotify.com/dashboard</a> (coloque Redirect URI como <code class="text-slate-300">http://localhost:5000/</code>).
+                    </p>
+                </div>
+
+                <div class="border-t border-slate-800/80 pt-2 space-y-1.5">
+                    <span class="text-[11px] text-slate-400 block font-medium">Ou cole um Access Token pronto:</span>
+                    <div class="flex gap-2">
+                        <input type="password" id="modal-spotify-token-input" placeholder="Cole aqui seu Access Token..." 
+                               class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400" />
+                        <button onclick="saveUserToken()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-slate-700">
+                            Salvar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-2">
+                <span class="text-[11px] text-slate-500">Tudo funciona sem necessidade de configurar chaves no servidor.</span>
+                <button onclick="closeApiModal()" class="px-5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-slate-700">
+                    Fechar
+                </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>MusicPlay &copy; 2026 • Construído com <strong>C# (.NET 10)</strong>, <strong>ASP.NET Core</strong> e <strong>SignalR</strong></p>
+            <p class="text-slate-600">Sem limites de faixas • Matching por ISRC e Levenshtein</p>
+        </div>
+    </footer>
+
+    <!-- App Scripts -->
+    <script src="/js/app.js"></script>
+    <script>
+        function openApiModal() {
+            document.getElementById('api-modal').classList.remove('hidden');
+        }
+        function closeApiModal() {
+            document.getElementById('api-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MusicPlay.Web/MusicPlay.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MusicPlay.Tests/MusicPlay.Tests.csproj" />
+  </Folder>
+</Solution>
