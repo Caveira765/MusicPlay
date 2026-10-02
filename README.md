@@ -1,4 +1,4 @@
-# 🎵 MusicPlay - Clone do Tune My Music em C# (.NET 10)
+# 🎵 MusicPlay - C# (.NET 10)
 
 O **MusicPlay** é uma aplicação completa para transferência, sincronização e backup de playlists entre serviços de música, inspirada no *Tune My Music*, construída com **backend robusto em C# (.NET 10 / ASP.NET Core)** e interface web interativa em tempo real via **SignalR (WebSockets)**.
 
