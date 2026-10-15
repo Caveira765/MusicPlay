@@ -42,7 +42,7 @@ O **MusicPlay** é uma aplicação completa para transferência, sincronização
 
 1. Abra o terminal na pasta do projeto:
    ```bash
-   cd c:\Users\guiro\Downloads\MusicPlay
+   cd c:\Users\UserId\Downloads\MusicPlay
    ```
 
 2. Execute a aplicação:
